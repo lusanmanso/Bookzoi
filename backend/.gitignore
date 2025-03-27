@@ -1,0 +1,14 @@
+# ⚡ Node.js
+node_modules/
+dist/
+
+# 🔒 Variables de entorno (backend)
+.env
+.env.local
+.env.development
+.env.production
+
+# 🚀 Archivos de caché y compilación
+.cache/
+logs/
+*.log
