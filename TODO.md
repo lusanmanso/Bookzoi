@@ -5,3 +5,4 @@ npm install lightningcss-win32-x64-msvc
 
 structure.md -> frontend/src/utils/supabase.ts
 
+BookTag interface
