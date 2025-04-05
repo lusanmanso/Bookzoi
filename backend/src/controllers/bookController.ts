@@ -300,4 +300,51 @@ export const bookController = {
       }
    },
 
+   // Delete a book
+   deleteBook: async (req: Request, res: Response) => {
+      try {
+         const userId = req.headers['user-id'] as string;
+         const bookId = req.params.id;
+
+         if (!userId) {
+            return res.status(401).json({ error: 'User ID required in headers' });
+         }
+
+         if (!bookId) {
+            return res.status(400).json({ error: 'Book ID is required' });
+         }
+
+         // Verify books belong to user
+         const { data: existingBook, error: checkError } = await supabase
+            .from('books')
+            .select('id')
+            .eq('id', bookId)
+            .eq('user_id', userId)
+            .single();
+
+         if (!existingBook || checkError) {
+            console.error('Error finding book or book not owned by user: ', checkError);
+            return res.status(checkError?.code === 'PGRST116' ? 404 : 403).json({ error: checkError?.code === 'PGRST116' ? 'Book not found': 'Not authorized to delete this book' });
+         }
+
+         // Delete book
+         const { error: deleteBookError } = await supabase
+            .from('books')
+            .delete()
+            .eq('id', bookId);
+
+         if (deleteBookError) {
+            console.error('Error deleting book: ', deleteBookError);
+            return res.status(500).json({ error: deleteBookError.message });
+         }
+
+         return res.status(200).json({ message: 'Book deleted successfully' });
+      } catch (error) {
+         console.error('Unexpected error in deleteBook: ', error);
+         return res.status(500).json({ error: 'Internal server error' });
+      }
+   },
+
+
+
 }
