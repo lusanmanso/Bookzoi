@@ -378,6 +378,58 @@ export const bookController = {
       }
     },
 
-    
+    // Get book by tag
+    getBooksByTag: async (req: Request, res: Response) => {
+      try {
+        const userId = req.headers['user-id'] as string;
+        const tagId = req.params.tagId;
 
-}
+        if (!userId) {
+          return res.status(401).json({ error: 'User ID required in headers' });
+        }
+
+        if (!tagId) {
+          return res.status(400).json({ error: 'Tag ID is required' });
+        }
+
+        // Get book IDs with this tag
+        const { data: bookTags, error: bookTagsError } = await supabase
+          .from('book_tags')
+          .select('book_id')
+          .eq('tag_id', tagId);
+
+        if (bookTagsError) {
+          console.error('Error fetching book tags:', bookTagsError);
+          return res.status(500).json({ error: bookTagsError.message });
+        }
+
+        if (!bookTags || bookTags.length === 0) {
+          return res.status(200).json({ books: [] });
+        }
+
+        const bookIds = bookTags.map(bt => bt.book_id);
+
+        // Using OR conditions for the book IDs
+        let orConditions = bookIds.map(id => `id.eq.${id}`).join(',');
+
+        // Get books that match these IDs and belong to the user
+        const { data: books, error: booksError } = await supabase
+          .from('books')
+          .select('*')
+          .or(orConditions)
+          .eq('user_id', userId);
+
+        if (booksError) {
+          console.error('Error fetching books by tag:', booksError);
+          return res.status(500).json({ error: booksError.message });
+        }
+
+        return res.status(200).json({ books });
+      } catch (error) {
+        console.error('Unexpected error in getBooksByTag:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+    }
+};
+
+export default bookController;
