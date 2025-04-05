@@ -345,6 +345,39 @@ export const bookController = {
       }
    },
 
+   // Search books
+   searchBooks: async (req: Request, res: Response) => {
+      try {
+        const userId = req.headers['user-id'] as string;
+        const { query } = req.query;
 
+        if (!userId) {
+          return res.status(401).json({ error: 'User ID required in headers' });
+        }
+
+        if (!query || typeof query !== 'string') {
+          return res.status(400).json({ error: 'Search query is required' });
+        }
+
+        // Search for books matching the query
+        const { data: books, error } = await supabase
+          .from('books')
+          .select('*')
+          .eq('user_id', userId)
+          .or(`title.ilike.%${query}%,author.ilike.%${query}%,description.ilike.%${query}%`);
+
+        if (error) {
+          console.error('Error searching books:', error);
+          return res.status(500).json({ error: error.message });
+        }
+
+        return res.status(200).json({ books });
+      } catch (error) {
+        console.error('Unexpected error in searchBooks:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+    },
+
+    
 
 }
