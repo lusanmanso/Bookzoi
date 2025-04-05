@@ -109,5 +109,84 @@ export const bookController = {
    },
 
    // Create a new book
+   createBook: async (req: Request, res: Response) => {
+      try {
+         const userId = req.headers['user-id'] as string;
+
+         if (!userId) {
+            return res.status(401).json({ error: 'User ID required in headers' });
+         }
+
+         const {
+            title,
+            author,
+            isbn,
+            cover_image,
+            publication_date,
+            publisher,
+            description,
+            status,
+            rating,
+            notes,
+            tags
+         } = req.body;
+
+         if (!title) {
+            return res.status(400).json({ error: 'Title is required' });
+         }
+
+         // Create book
+         const { data: newBook, error: bookError } = await supabase
+            .from('books')
+            .insert([{
+               userId: userId,
+               title,
+               author,
+               isbn,
+               cover_image,
+               publication_date,
+               publisher,
+               description,
+               status: status || 'to-read',
+               rating,
+               notes,
+               created_at: new Date().toISOString(),
+               updated_at: new Date().toISOString()
+            }])
+            .select()
+            .single();
+
+         if (bookError) {
+            console.error('Error creating book: ', bookError);
+            return res.status(500).json({ error: bookError.message });
+         }
+
+         // Add tags if provided
+         if (tags && Array.isArray(tags) && tags.length > 0) {
+            const bookTags = tags.map((tagsId: string) => ({
+               book_id: newBook.id,
+               tag_id: tagsId,
+               created_at: new Date().toISOString()
+            }));
+
+            const { error: tagError } = await supabase
+               .from('book_tags')
+               .insert(bookTags);
+
+            if (tagError) {
+               console.error('Error adding tags to book: ', tagError);
+               // Still return the book if tag assignment fails
+            }
+         }
+
+         return res.status(201).json({ book: newBook });
+
+      } catch (error) {
+         console.log('Unexpected error in createBook: ', error);
+         return res.status(500).json({ error: 'Internal server error' });
+      }
+   },
+
+
 
 }
