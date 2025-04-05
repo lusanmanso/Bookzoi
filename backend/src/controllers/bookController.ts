@@ -2,6 +2,8 @@
 import { Request, Response } from 'express';
 import supabase from '../utils/supabase.js';
 import { Book, Tag, BookWithTags } from '../types/index.js';
+import { rawListeners } from 'process';
+import { create } from 'domain';
 
 // Handles all book-related operations
 export const bookController = {
@@ -187,6 +189,115 @@ export const bookController = {
       }
    },
 
-   
+   // Update existing book
+   updateBook: async(req: Request, res: Response) => {
+      try {
+         const userId = req.headers['user-id'] as string;
+         const bookId = req.params.id;
+
+         if (!userId) {
+            return res.status(401).json({ error: 'User ID required in headers' });
+         }
+
+         if (!bookId) {
+            return res.status(400).json({ error: 'Book ID is required' });
+         }
+
+         const {
+            title,
+            author,
+            isbn,
+            cover_image,
+            publication_date,
+            publisher,
+            description,
+            status,
+            rating,
+            notes,
+            tags
+         } = req.body;
+
+         if (!title) {
+            return res.status(400).json({ error: 'Title is required '});
+         }
+
+         // First verify the book belongs to the user
+         const { data: existingBook, error: checkError } = await supabase
+            .from('books')
+            .select('id')
+            .eq('id', bookId)
+            .eq('user_id', userId)
+            .single();
+
+         if (checkError || !existingBook) {
+            console.error('Error finding book or book not owned by user: ', checkError);
+            return res.status(checkError?.code === 'PGRST116' ? 404 : 403).json({ error: checkError?.code === 'PGRST116' ? 'Book not found': 'Not authorized to update this book' });
+         }
+
+         // Update book
+         const { data: updatedBook, error: updateError } = await supabase
+            .from('books')
+            .update({
+               title,
+               author,
+               isbn,
+               cover_image,
+               publication_date,
+               publisher,
+               description,
+               status,
+               rating,
+               notes,
+               updated_at: new Date().toISOString()
+            })
+            .eq('id', bookId)
+            .select()
+            .single();
+
+         if (updateError) {
+            console.error('Error updating book: ', updateError);
+            return res.status(500).json({ error: updateError.message });
+         }
+
+         // Update tags if provided
+         if (tags && Array.isArray(tags)) {
+            // First remove all existing tags
+            const { error: deleteTagsError } = await supabase
+               .from('book_tags')
+               .delete()
+               .eq('book_id', bookId);
+
+            if (deleteTagsError) {
+               console.error('Error deleting existing tags: ', deleteTagsError);
+               return res.status(500).json({ error: deleteTagsError.message });
+               // Continue with process
+            }
+
+            // Add new tags if provided
+            if (tags.length > 0) {
+               const bookTags = tags.map((tagsId: string) => ({
+                  bookId: bookId,
+                  tag_id: tagsId,
+                  created_at: new Date().toISOString()
+               }));
+
+               const { error: insertTagsError } = await supabase
+                  .from('book_tags')
+                  .insert(bookTags);
+
+               if (insertTagsError) {
+                  console.error('Error adding new tags: ', insertTagsError);
+                  return res.status(500).json({ error: insertTagsError.message });
+                  // Still rturn the updated book
+               }
+            }
+         }
+
+         return res.status(200).json({ book: updatedBook });
+      } catch (error) {
+         console.error('Unexpected error in updateBooks', error);
+         return res.status(500).json({ error: 'Internal server error' });
+      }
+   },
 
 }
